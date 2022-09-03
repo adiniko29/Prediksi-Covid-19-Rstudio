@@ -1,0 +1,544 @@
+---
+title: "Covid19TARShiny"
+author: ""
+output: 
+        flexdashboard::flex_dashboard:
+        orientation: columns, row
+        vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(plotly)
+library(plyr)
+library(flexdashboard)
+library(tidyverse)
+library(ROCR)
+library(MASS) # for Pima data sets
+library(plotROC)
+
+view()
+
+# create some data
+dataTARCovid19Adiniko=read.csv("D:/fileniko/TA_ADINIKO_0641716/aplikasi/COVID19_line_list_data")
+data<- dataTARCovid19Adiniko
+
+head(dataTARCovid19Adiniko)
+View(dataTARCovid19Adiniko)
+colnames(dataTARCovid19Adiniko)
+dim(dataTARCovid19Adiniko)
+str(dataTARCovid19Adiniko)
+
+str(dataTARCovid19Adiniko)
+#$ gender        : num  1 0 1 0 1 0 1 1 1 1 ...
+
+table(data$death)
+table(data$recovered)
+table(dataTARCovid19Adiniko$death)
+dataTARCovid19Adiniko$death_dummy=as.integer(dataTARCovid19Adiniko$death != 0)
+table(dataTARCovid19Adiniko$death_dummy)
+dataTARCovid19Adiniko$recovered_dummy=as.integer(dataTARCovid19Adiniko$recovered !=0)
+table(dataTARCovid19Adiniko$recovered_dummy)
+table(dataTARCovid19Adiniko$visiting.Wuhan, dataTARCovid19Adiniko$recovered_dummy)
+table(dataTARCovid19Adiniko$from.Wuhan, dataTARCovid19Adiniko$recovered_dummy)
+view(data)
+
+nrow(dataTARCovid19Adiniko[is.na(dataTARCovid19Adiniko$gender) | is.na(dataTARCovid19Adiniko$age),])
+dataTARCovid19Adiniko[is.na(dataTARCovid19Adiniko$age) | is.na(dataTARCovid19Adiniko$gender),]
+nrow(dataTARCovid19Adiniko)
+data <- dataTARCovid19Adiniko[!(is.na(dataTARCovid19Adiniko$gender) | is.na(dataTARCovid19Adiniko$age)),]
+nrow(data)
+
+#gender
+data[data$gender == "female",]$gender <- 0
+data[data$gender == "male",]$gender <- 1
+data$gender <- as.numeric(data$gender)
+
+#1. satistika deskriptif
+
+attach(data)
+table(death_dummy)
+table(gender)
+table(recovered_dummy)
+table(visiting.Wuhan)
+table(from.Wuhan)
+
+summary(data)
+xtabs(~ death_dummy + gender,data=data)
+xtabs(~ death_dummy + age,data=data)
+xtabs(~ death_dummy + recovered_dummy,data=data)
+xtabs(~ death_dummy + visiting.Wuhan,data=data)
+xtabs(~ death_dummy + from.Wuhan,data=data)
+
+#2. Tabulasi Silang
+ct <- table(gender,death_dummy)
+ftable(ct)
+ct1 <- table(age,death_dummy)
+ftable(ct1)
+ct2 <- table(recovered_dummy,death_dummy)
+ftable(ct2)
+ct3 <- table(visiting.Wuhan,death_dummy)
+ftable(ct3)
+ct4 <- table(from.Wuhan,death_dummy)
+ftable(ct4)
+
+
+#3. regresi logistik gender, usia, recovered dan kematian
+library(oddsratio)
+library(ggplot2)
+library(cowplot)
+library(base)
+library(dplyr)
+library(foreign)
+library(nnet)
+library(ordinal)
+library(MASS)
+library(pscl)
+library(lmtest)
+library(zoo)
+library(haven)
+
+#3. Uji Proposisi Gender terhadap kematian
+#gender vs death
+str(data)
+male=subset(data, data$gender==1)
+female=subset(data, data$gender==0)
+
+dim_male = dim(male)
+dim_male
+
+dim_female = dim(female)
+dim_female
+
+sum_male = table(male$death_dummy)
+sum_male
+
+sum_female = table(female$death_dummy)
+sum_female
+
+#recovered vs death
+notsurvive=subset(data, data$recovered_dummy==0)
+survive=subset(data, data$recovered_dummy==1)
+
+dim_notsurvive = dim(notsurvive)
+dim_notsurvive
+
+dim_survive = dim(survive)
+dim_survive
+
+sum_notsurvive = table(notsurvive$death_dummy)
+sum_notsurvive
+
+sum_survive = table(survive$death_dummy)
+sum_survive
+
+#visit wuhan vs death
+notvisiting=subset(data, data$visiting.Wuhan=="0")
+visiting=subset(data, data$visiting.Wuhan=="1")
+
+dim_notvisiting = dim(notvisiting)
+dim_notvisiting
+
+dim_visiting = dim(visiting)
+dim_visiting
+
+sum_notvisiting = table(notvisiting$death_dummy)
+sum_notvisiting
+
+sum_visiting = table(visiting$death_dummy)
+sum_visiting
+
+#from wuhan vs death
+notfromwuhan=subset(data, data$from.Wuhan=="0")
+fromwuhan=subset(data, data$from.Wuhan=="1")
+
+dim_notfromwuhan = dim(notfromwuhan)
+dim_notfromwuhan
+
+dim_fromwuhan = dim(fromwuhan)
+dim_fromwuhan
+
+sum_notfromwuhan = table(notfromwuhan$death_dummy)
+sum_notfromwuhan
+
+sum_fromwuhan = table(fromwuhan$death_dummy)
+sum_fromwuhan
+
+# uji perbedaan proporsi antar 2 grup dengan menggunakan z-test
+# Ho : p death_rate_male is egual to p death_rate_female
+# Ha : p death_rate_male is not equal to p death_rate_female
+
+#prop gender to death
+prop.test(x = c(44, 14), n = c(476, 349),alternative = "two.sided", conf.level = .95, correct = FALSE)
+
+#prop recovered to death
+prop.test(x = c(58, 0), n = c(682, 143),alternative = "two.sided", conf.level = .95, correct = FALSE)
+
+#prop visiting.Wuhan to death
+prop.test(x = c(57, 1), n = c(677, 148),alternative = "two.sided", conf.level = .95, correct = FALSE)
+
+#prop from.Wuhan to death
+prop.test(x = c(24, 34), n = c(671, 150),alternative = "two.sided", conf.level = .95, correct = FALSE)
+
+#Uji T
+
+dead=subset(data, data$death_dummy ==1)
+alive=subset(data, data$death_dummy == 0)
+# Ho : miu age_dead is equal to miu age_alive
+# H1 : miu age_dead  is not equal to age_alive
+
+t.test(dead$age, alive$age, alternative = "two.sided")
+
+
+
+#MOdel REGRESI LOGIT
+#Model1
+logistik1 <- glm(data$death_dummy ~ data$gender +data$age + data$recovered_dummy +data$visiting.Wuhan + data$from.Wuhan, data = data, family = binomial(link="logit"))
+
+#Uji Overall/simultan
+pR2(logistik1)
+qchisq(0.95,7)
+
+#Uji Parsial
+summary(logistik1)
+
+#Model2
+logistik2=glm(data$death_dummy ~ data$gender +data$age +data$recovered_dummy + data$from.Wuhan, family=binomial (link="logit"), data = data)
+summary(logistik2)
+
+#Model3
+logistik3=glm(data$death_dummy ~ data$gender +data$age + data$visiting.Wuhan  +data$from.Wuhan, family=binomial (link="logit"),data = data)
+summary(logistik3)
+
+#Model4
+logistik4=glm(data$death_dummy ~ data$gender +data$age + data$from.Wuhan, family=binomial (link="logit"), data = data)
+summary(logistik4)
+
+Model=c("Model 1","Model 2","Model 3","Model 4")
+AIC = c(logistik1$aic,logistik2$aic,logistik3$aic, logistik4$aic)
+
+Tabel_Kriteria=data.frame(Model,AIC)
+Tabel_Kriteria
+
+#Koefisien Determinan
+pR2(logistik2)
+qchisq(0.95,6)
+
+library(ResourceSelection)
+hl <- hoslem.test(logistik2$y, fitted(logistik2))
+hl
+
+library(aod)
+waldtest(logistik2, logistik1, test = "Chisq")
+
+
+```
+
+# gender\~death
+
+## Column {data-width="250"}
+
+### geom_jitter gender\~death
+
+```{r}
+a <- ggplot(data, aes(gender, death_dummy))
+a + geom_jitter(aes(colour = factor(gender), shape = factor(death_dummy), size = gender))
+
+```
+
+## Row {data-width="250"}
+
+### geom pointsmooth gender~death
+
+```{r}
+ggplot(data, aes(gender, as.numeric(death_dummy)-1 )) +
+  geom_point() +
+  geom_smooth(method = "glm", se = FALSE, method.args = list(family = "binomial"))
+
+```
+
+## Row {data-width="200"}
+
+### hist gender
+```{r}
+hist(data$gender)
+```
+
+
+# age~death
+
+## Column {data-width="650"}
+
+### geom_jitter age~death
+
+```{r}
+a <- ggplot(data, aes(age, death_dummy))
+a + geom_jitter(aes(colour = factor(age), shape = factor(death_dummy), size = age))
+
+```
+
+## Column {data-width="350"}
+
+### geom pointsmooth age~death
+
+```{r}
+ggplot(data, aes(age, as.numeric(death_dummy)-1 )) +
+  geom_point() +
+  geom_smooth(method = "glm", se = FALSE, method.args = list(family = "binomial"))
+
+```
+
+### hist age
+
+```{r}
+hist(data$age)
+```
+
+# recover~death
+
+## Column {data-width="650"}
+
+### geom_jitter recovered~death
+
+```{r}
+a <- ggplot(data, aes(recovered_dummy, death_dummy))
+a + geom_jitter(aes(colour = factor(recovered_dummy), shape = factor(death_dummy), size = recovered_dummy))
+
+```
+
+## Column {data-width="350"}
+
+### geom pointsmooth recovered~death
+
+```{r}
+ggplot(data, aes(recovered_dummy, as.numeric(death_dummy)-1 )) +
+  geom_point() +
+  geom_smooth(method = "glm", se = FALSE, method.args = list(family = "binomial"))
+
+```
+
+### hist recovered
+
+```{r}
+hist(data$recovered_dummy)
+```
+
+# visitWuhan~death
+
+## Column {data-width="650"}
+
+### geom_jitter visitingWuhan~death
+
+```{r}
+a <- ggplot(data, aes(visiting.Wuhan, death_dummy))
+a + geom_jitter(aes(colour = factor(visiting.Wuhan), shape = factor(death_dummy), size = visiting.Wuhan))
+
+```
+
+## Column {data-width="350"}
+
+### geom pointsmooth visiringWuhan~death
+
+```{r}
+ggplot(data, aes(visiting.Wuhan, as.numeric(death_dummy)-1 )) +
+  geom_point() +
+  geom_smooth(method = "glm", se = FALSE, method.args = list(family = "binomial"))
+
+```
+
+### hist visitingWuhan
+
+```{r}
+hist(data$visiting.Wuhan)
+```
+
+# fromWuhan~death
+
+## Column {data-width="650"}
+
+### geom_jitter fromWuhan\~death
+
+```{r}
+a <- ggplot(data, aes(from.Wuhan, death_dummy))
+a + geom_jitter(aes(colour = factor(from.Wuhan), shape = factor(death_dummy), size = from.Wuhan))
+
+```
+
+## Column {data-width="350"}
+
+### geom pointsmooth fromWuhan~death
+
+```{r}
+ggplot(data, aes(from.Wuhan, as.numeric(death_dummy)-1 )) +
+  geom_point() +
+  geom_smooth(method = "glm", se = FALSE, method.args = list(family = "binomial"))
+
+```
+
+### hist fromWuhan
+
+```{r}
+hist(data$from.Wuhan)
+```
+
+```{r}
+library(caret)
+library(InformationValue)
+library(ISLR)
+
+#Splitdata
+#make this example reproducible
+set.seed(1)
+
+#Use 90% of dataset as training set and remaining 10% as testing set
+sample <- sample(c(TRUE, FALSE), nrow(data), replace=TRUE, prob=c(0.90,0.10))
+train <- data[sample, ]
+test <- data[!sample, ]  
+
+#fit logistic regression model
+model <- glm(death_dummy ~ gender + age + recovered_dummy + from.Wuhan, family="binomial", data=train)
+model
+
+#disable scientific notation for model summary
+options(scipen=999)
+
+#view model summary
+summary(model)
+summary(data)
+
+pscl::pR2(model)["McFadden"]
+
+caret::varImp(model)
+
+#calculate VIF values for each predictor variable in our model
+car::vif(model)
+
+#define two individuals
+new <- data.frame(gender = c(0, 1), age = 48,recovered_dummy = c(0, 1),from.Wuhan = c(0, 1))
+
+#predict probability of defaulting
+predict(model, new, type="response")
+
+#calculate probability of default for each individual in test dataset
+predicted <- predict(model, test, type="response")
+predicted
+
+library(InformationValue)
+
+#convert defaults from "Yes" and "No" to 1's and 0's
+test$death_dummy <- ifelse(test$death_dummy=="Death", 1, 0)
+
+#find optimal cutoff probability to use to maximize accuracy
+optimal <- optimalCutoff(test$death_dummy, predicted)[1]
+optimal
+
+table(test$death_dummy)
+
+library(caret)
+#confusionMatrix(test$Y, test$predicted)
+
+#Confusion Matrix
+table(test$death_dummy, predicted > 0.10)
+table(test$death, predicted > 0.10)
+#confusionMatrix(test$death_dummy, predicted)
+
+#calculate sensitivity
+sensitivity(test$death_dummy, test$predicted)
+sensitivity <- (75/(75+0))
+sensitivity
+
+#calculate specificity
+specificity(test$death_dummy, predicted)
+specificity <- (6/(6+0))
+specificity
+
+#calculate specificity
+precision(test$death_dummy, predicted)
+precision <- (75/(75+9))
+precision
+
+#calculate total misclassification error rate
+misClassError(test$death_dummy, predicted, threshold=optimal)
+
+# Accuracy of model:
+(75+6)/(75+9+0+6)
+
+# combine linear predictor and known truth for training and test datasets into one data frame
+df <- rbind(data.frame(predictor = predict(model, data),known.truth = data$death_dummy,model = "train"),
+data.frame(predictor = predict(model, data),known.truth = data$death_dummy, model = "test"))
+
+#odds rasio
+exp(coef(model))
+#manual 
+#GENDER ODDS
+odds=glm(data$death_dummy ~ data$gender, family=binomial)
+or_glm(data=data, model=odds)
+odds
+
+# pi(X=1)peluang mengalami kematian akibat covid dari pasien pria
+m=2.71828^(-3.1751+0.8908*1)/(1+2.71828^(-3.1751+0.8908*1))
+m
+# [1] 0.08461769
+# pi(X=0)peluang mengalami kematian akibat covid dari pasien wanita
+f=2.71828^(-3.1751+0.8908*0)/(1+2.71828^(-3.1751+0.8908*0))
+f
+
+odds_male=m/(1-m)
+odds_female=f/(1-f)
+odds_ratio1=odds_male/odds_female
+odds_ratio1
+
+#AGE ODDS
+library(oddsratio)
+odds=glm(data$death_dummy ~ data$age, family=binomial)
+or_glm(data=data, model=odds)
+odds
+
+# peluang mengalami kematian akibat covid dari pasien usia 30
+usia30 = 2.71828^(-7.31275+0.07981 * 30)/(1+2.71828^(-7.31275+0.07981 *30))
+usia30
+# peluang mengalami kematian akibat covid dari pasien usia 70
+usia31 = 2.71828^(-7.31275+0.07981 * 31)/(1+2.71828^(-7.31275+0.07981 *31))
+usia31
+
+odds_usia30=usia30/(1-usia30)
+odds_usia31=usia31/(1-usia31)
+odds_ratio2=odds_usia30/odds_usia31
+odds_ratio2
+```
+# Prdic,ROCR
+
+## Rows {data-width="350"}
+
+### Prediksi
+
+```{r}
+test$data<-predict(model, type = "response", newdata = test)
+ggplot(test, aes(x=data)) +
+  geom_density(lwd=0.5)+
+  labs(title = "Distribusi Prob Data Prediksi Kematian Pasien") +
+  theme_minimal()
+```
+# ROCR
+
+## Rows {data-width="350"}
+
+### ROCR
+
+```{r}
+# the aesthetic names are not the most intuitive
+# `d` (disease) holds the known truth
+# `m` (marker) holds the predictor values 
+ggplot(df, aes(d = known.truth, m = predictor, color = model)) + 
+  geom_roc()
+```
+
+
+## Rows {data-width="350"}
+
+### AUROCR
+```{r}
+#plotroc
+plotROC(test$death, predicted)
+
+```
